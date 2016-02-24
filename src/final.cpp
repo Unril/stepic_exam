@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
   }
 
   std::string opt = "\"" + ip + "\" \"" + port + "\" \"" + dir + "\"";
-  printf("Starting server with options: %s\n", opt.c_str());
+ // printf("Starting server with options: %s\n", opt.c_str());
 
 #ifdef WIN32
   int i = system(("server.exe " + opt).c_str());

@@ -71,18 +71,16 @@ public:
       : socket_{move(socket)}, dir_{dir} {}
 
   void operator()() {
-    cout << "Starting thread: " << this_thread::get_id() << endl;
+   // cout << "Starting thread: " << this_thread::get_id() << endl;
     run();
-    cout << "Exiting thread: " << this_thread::get_id() << endl;
+    //cout << "Exiting thread: " << this_thread::get_id() << endl;
   }
 
 private:
   void run() {
-   // socket_.set_option(SetRcvTimeout(timeoutMs));
-   // socket_.set_option(SetSndTimeout(timeoutMs));
     try {
       while (true) {
-        cout << "Start reading..." << endl;
+       // cout << "Start reading..." << endl;
 
         char data[max_length];
         asio::error_code error;
@@ -102,13 +100,13 @@ private:
           path = path.substr(0, p);
         }
 
-        cout << "Parsed: " << method << " -> " << path << endl;
-        cout << "Read in " << this_thread::get_id() << endl;
-        cout << dataStr << endl;
+        //cout << "Parsed: " << method << " -> " << path << endl;
+        //cout << "Read in " << this_thread::get_id() << endl;
+        //cout << dataStr << endl;
 
         if (method == "GET" && !path.empty()) {
           path = dir_ + "/" + path;
-		  cout << "Opening: " << path << endl;
+		 // cout << "Opening: " << path << endl;
           ifstream ifs(path);
           if (!ifs) {
             write(socket_, asio::buffer(notFound));
@@ -140,8 +138,8 @@ private:
 
 void server(asio::io_service &service, asio::ip::address ip, int port,
             string dir) {
-  cout << "Starting server with address " << ip << " port " << port
-       << " and dir " << dir << endl;
+  //cout << "Starting server with address " << ip << " port " << port
+  //     << " and dir " << dir << endl;
   tcp::acceptor a(service, tcp::endpoint(ip, port));
   for (;;) {
     tcp::socket sock(service);
