@@ -13,14 +13,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-inline bool isFileExists(const std::string &name) {
-  struct stat buffer;
-  return (stat(name.c_str(), &buffer) == 0);
-}
-
 #else
-
-inline bool isFileExists(const std::string &name) { return true; }
 
 ///////////////////////////////////////////////////////////////////////////////
 // getopt.h
@@ -53,10 +46,33 @@ using asio::ip::tcp;
 
 namespace HttpServer {
 
-static const unsigned int timeoutMs = 30000;
+static const string notFoundContent = "<html>"
+                                      "<head><title>Not Found</title></head>"
+                                      "<body><h1>404 Not Found</h1></body>"
+                                      "</html>";
 
-static const string notFound =
-    "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
+static const string notFound = "HTTP/1.0 404 Not Found\r\nContent-Length: " +
+                               to_string(notFoundContent.size()) +
+                               "\r\nContent-Type: text/html\r\n\r\n" +
+                               notFoundContent;
+
+static const string badRequestContent =
+    "<html>"
+    "<head><title>Bad Request</title></head>"
+    "<body><h1>400 Bad Request</h1></body>"
+    "</html>";
+
+static const string badRequest =
+    "HTTP/1.0 400 Bad Request\r\nContent-Length: " +
+    to_string(badRequestContent.size()) +
+    "\r\nContent-Type: text/html\r\n\r\n" + badRequestContent;
+
+enum class Result {
+  Ok,
+  NotFound,
+  BadRequest,
+  Error,
+};
 
 class Session : public enable_shared_from_this<Session> {
 public:
@@ -65,66 +81,121 @@ public:
   explicit Session(tcp::socket socket, string dir)
       : socket_{move(socket)}, dir_{dir} {}
 
-  void operator()() { run(); }
+  void operator()() {
+    string content;
+    Result r = run(content);
 
-private:
-  void run() {
+    switch (r) {
+    case Result::Ok: {
+      stringstream resp;
+      resp << "HTTP/1.0 200 OK\r\nContent-Length: " << content.size()
+           << "\r\nContent-type: text/html\r\n\r\n"
+           << content;
+      write(socket_, asio::buffer(resp.str()));
+    } break;
+    case Result::NotFound:
+      write(socket_, asio::buffer(notFound));
+      break;
+    case Result::Error:
+      break;
+    case Result::BadRequest:
+      write(socket_, asio::buffer(badRequest));
+      break;
+    default:
+      break;
+    }
+
+    asio::error_code ignored_ec;
+    socket_.shutdown(tcp::socket::shutdown_both, ignored_ec);
+  }
+
+  Result handleRequest(string uri, string &content) const {
+    int p = uri.find('?');
+    if (p != string::npos) {
+      uri = uri.substr(0, p);
+    }
+
+    // Decode url to path.
+    string request_path;
+    if (!urlDecode(uri, request_path)) {
+      return Result::BadRequest;
+    }
+
+    // Request path must be absolute and not contain "..".
+    if (request_path.empty() || request_path[0] != '/' ||
+        request_path.find("..") != string::npos) {
+      return Result::BadRequest;
+    }
+
+    // If path ends in slash (i.e. is a directory) then add "index.html".
+    if (request_path[request_path.size() - 1] == '/') {
+      request_path += "index.html";
+    }
+
+    // Open the file to send back.
+    string full_path = dir_ + request_path;
+    ifstream is(full_path.c_str(), ios::in | ios::binary);
+    if (!is) {
+      return Result::NotFound;
+    }
+
+    // Fill out the reply to be sent to the client.
+    content.clear();
+    char buf[512];
+    while (is.read(buf, sizeof(buf)).gcount() > 0)
+      content.append(buf, is.gcount());
+    return Result::Ok;
+  }
+
+  static bool urlDecode(const string &in, string &out) {
+    out.clear();
+    out.reserve(in.size());
+    for (size_t i = 0; i < in.size(); ++i) {
+      if (in[i] == '%') {
+        if (i + 3 <= in.size()) {
+          int value = 0;
+          istringstream is(in.substr(i + 1, 2));
+          if (is >> hex >> value) {
+            out += static_cast<char>(value);
+            i += 2;
+          } else {
+            return false;
+          }
+        } else {
+          return false;
+        }
+      } else if (in[i] == '+') {
+        out += ' ';
+      } else {
+        out += in[i];
+      }
+    }
+    return true;
+  }
+
+  Result run(string &content) {
     try {
       char data[max_length];
       asio::error_code error;
       size_t length = socket_.read_some(asio::buffer(data, max_length), error);
+      string dataStr(data, length);
       if (error == asio::error::eof)
-        return;
+        return Result::Ok;
       if (error)
         throw asio::system_error(error);
-
-      string dataStr(data, length);
-      if (dataStr.empty()) {
-        return;
-      }
 
       stringstream ss(dataStr);
       string method;
       string path;
       ss >> method >> path;
-	  
 
-      int p = path.find('?');
-      if (p != string::npos) {
-        path = path.substr(0, p);
+      if (method == "GET") {
+        return handleRequest(path, content);
       }
-      if (path == "/") {
-        path = "/index.html";
-      }
-
-      if (method == "GET" && path.size() > 1) {
-        path = dir_ + path;
-        string content;
-        try {
-          ifstream ifs(path, ios_base::in);
-          if (!ifs.good()) {
-            write(socket_, asio::buffer(notFound));
-            return;
-          }
-          content = string((istreambuf_iterator<char>(ifs)),
-                           istreambuf_iterator<char>());
-        } catch (const exception &) {
-        }
-        if (content.empty()) {
-          write(socket_, asio::buffer(notFound));
-          return;
-        }
-
-        stringstream resp;
-        resp << "HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n" << content;
-        write(socket_, asio::buffer(resp.str()));
-      } else {
-        write(socket_, asio::buffer(notFound));
-        return;
-      }
-
+      return Result::BadRequest;
     } catch (const exception &e) {
       cerr << "Session exception: " << e.what() << "\n";
+      return Result::Error;
     }
   }
 
@@ -134,6 +205,9 @@ private:
 
 void server(asio::io_service &service, asio::ip::address ip, int port,
             string dir) {
+  if (dir.back() == '/')
+    dir = dir.substr(0, dir.size() - 1);
+
   tcp::acceptor a(service, tcp::endpoint(ip, port));
   for (;;) {
     tcp::socket sock(service);
@@ -220,7 +294,7 @@ int main(int argc, char **argv) {
   /* Close out the standard file descriptors */
   close(STDIN_FILENO);
   close(STDOUT_FILENO);
-  close(STDERR_FILENO);
+// close(STDERR_FILENO);
 #endif
 
   run(ip, port, dir);
