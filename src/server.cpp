@@ -71,9 +71,9 @@ public:
       : socket_{move(socket)}, dir_{dir} {}
 
   void operator()() {
-   // cout << "Starting thread: " << this_thread::get_id() << endl;
+    // cout << "Starting thread: " << this_thread::get_id() << endl;
     run();
-  //  cout << "Exiting thread: " << this_thread::get_id() << endl;
+    //  cout << "Exiting thread: " << this_thread::get_id() << endl;
   }
 
 private:
@@ -82,7 +82,7 @@ private:
     socket_.set_option(SetSndTimeout(timeoutMs));
     try {
       while (true) {
-       // cout << "Start reading..." << endl;
+        // cout << "Start reading..." << endl;
 
         char data[max_length];
         asio::error_code error;
@@ -97,17 +97,18 @@ private:
         string method;
         string path;
         ss >> method >> path;
-		int p = path.find('?');
-		if(p != string::npos) {
-			path = path.substr(0, p);
-		}
-       // cout << "Parsed: " << method << " -> " << path << endl;
-        //cout << "Read in " << this_thread::get_id() << endl;
-       // cout << dataStr << endl;
+        int p = path.find('?');
+        if (p != string::npos) {
+          path = path.substr(0, p);
+        }
 
-        if (method == "GET" && !path.empty()) {
-          string absPath = dir_ + path;
-          ifstream ifs(absPath);
+        // cout << "Parsed: " << method << " -> " << path << endl;
+        // cout << "Read in " << this_thread::get_id() << endl;
+        // cout << dataStr << endl;
+
+        if (method == "GET" && !path.empty()) {         
+		  path = dir_ + "/" + path;
+          ifstream ifs(path);
           if (!ifs) {
             write(socket_, asio::buffer(notFound));
             break;
@@ -128,7 +129,7 @@ private:
         }
       }
     } catch (const exception &e) {
-   //   cerr << "Session exception: " << e.what() << "\n";
+      //   cerr << "Session exception: " << e.what() << "\n";
     }
   }
 
@@ -151,7 +152,7 @@ void server(asio::io_service &service, asio::ip::address ip, int port,
 
 int main(int argc, char **argv) {
   if (argc != 4) {
-  //  cerr << "Not enough arguments" << endl;
+    //  cerr << "Not enough arguments" << endl;
     exit(2);
   }
   try {
@@ -164,7 +165,7 @@ int main(int argc, char **argv) {
                        stoi(port), dir);
     io_service.run();
   } catch (const exception &e) {
- //   cerr << "Exception: " << e.what() << "\n";
+    //   cerr << "Exception: " << e.what() << "\n";
   }
   return 0;
 }
