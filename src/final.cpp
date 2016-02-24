@@ -65,65 +65,64 @@ public:
   explicit Session(tcp::socket socket, string dir)
       : socket_{move(socket)}, dir_{dir} {}
 
-  void operator()() {
-    run();
-  }
+  void operator()() { run(); }
 
 private:
   void run() {
     try {
-      while (true) {
-        char data[max_length];
-        asio::error_code error;
-        size_t length =
-            socket_.read_some(asio::buffer(data, max_length), error);
-        if (error == asio::error::eof)
-          break; 
-        if (error)
-          throw asio::system_error(error); 
+      char data[max_length];
+      asio::error_code error;
+      size_t length = socket_.read_some(asio::buffer(data, max_length), error);
+      if (error == asio::error::eof)
+        return;
+      if (error)
+        throw asio::system_error(error);
 
-        string dataStr(data, length);
-        if (dataStr.empty()) {
-          break;
-        }
-        stringstream ss(dataStr);
-        string method;
-        string path;
-        ss >> method >> path;
-        int p = path.find('?');
-        if (p != string::npos) {
-          path = path.substr(0, p);
-        }
-        if (path == "/") {
-          path = "/index.html";
-        }
-
-        if (method == "GET" && path.size() > 1) {
-          path = dir_ + path;
-          string content;
-          try {
-            ifstream ifs(path, ios_base::in);
-            if (!ifs.good()) {
-              write(socket_, asio::buffer(notFound));
-              break;
-            }
-            content = string((istreambuf_iterator<char>(ifs)),
-                             istreambuf_iterator<char>());
-          } catch (const exception &) {
-          }
-          if (content.empty()) {
-            write(socket_, asio::buffer(notFound));
-            break;
-          }
-
-          stringstream resp;
-          resp << "HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n" << content;
-          write(socket_, asio::buffer(resp.str()));
-        } else {
-          write(socket_, asio::buffer(notFound));
-          break;
-        }
+      string dataStr(data, length);
+      if (dataStr.empty()) {
+        return;
       }
+
+      stringstream ss(dataStr);
+      string method;
+      string path;
+      ss >> method >> path;
+	  
+
+      int p = path.find('?');
+      if (p != string::npos) {
+        path = path.substr(0, p);
+      }
+      if (path == "/") {
+        path = "/index.html";
+      }
+
+      if (method == "GET" && path.size() > 1) {
+        path = dir_ + path;
+        string content;
+        try {
+          ifstream ifs(path, ios_base::in);
+          if (!ifs.good()) {
+            write(socket_, asio::buffer(notFound));
+            return;
+          }
+          content = string((istreambuf_iterator<char>(ifs)),
+                           istreambuf_iterator<char>());
+        } catch (const exception &) {
+        }
+        if (content.empty()) {
+          write(socket_, asio::buffer(notFound));
+          return;
+        }
+
+        stringstream resp;
+        resp << "HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n" << content;
+        write(socket_, asio::buffer(resp.str()));
+      } else {
+        write(socket_, asio::buffer(notFound));
+        return;
+      }
+
     } catch (const exception &e) {
       cerr << "Session exception: " << e.what() << "\n";
     }
@@ -189,7 +188,7 @@ int main(int argc, char **argv) {
   }
 
 #ifndef WIN32
-  pid_t pid;
+  pid_t pid, sid;
   pid = fork();
   if (pid < 0) {
     exit(EXIT_FAILURE);
@@ -199,6 +198,29 @@ int main(int argc, char **argv) {
   if (pid > 0) {
     exit(EXIT_SUCCESS);
   }
+
+  /* Change the file mode mask */
+  umask(0);
+
+  /* Open any logs here */
+
+  /* Create a new SID for the child process */
+  sid = setsid();
+  if (sid < 0) {
+    /* Log any failures here */
+    exit(EXIT_FAILURE);
+  }
+
+  /* Change the current working directory */
+  if ((chdir("/")) < 0) {
+    /* Log any failures here */
+    exit(EXIT_FAILURE);
+  }
+
+  /* Close out the standard file descriptors */
+  close(STDIN_FILENO);
+  close(STDOUT_FILENO);
+  close(STDERR_FILENO);
 #endif
 
   run(ip, port, dir);
