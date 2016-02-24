@@ -283,7 +283,7 @@ int main(int argc, char **argv) {
   umask(0);
 
   /* Open any logs here */
-  log_ = new ofsteram("/home/box/log.txt");
+  log_ = new ofstream("/home/box/log.txt");
 
   /* Create a new SID for the child process */
   sid = setsid();
