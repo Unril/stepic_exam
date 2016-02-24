@@ -10,9 +10,17 @@
 #ifndef WIN32
 
 #include <getopt.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
+inline bool isFileExists(const std::string &name) {
+  struct stat buffer;
+  return (stat(name.c_str(), &buffer) == 0);
+}
+
 #else
+
+inline bool isFileExists(const std::string &name) { return true; }
 
 ///////////////////////////////////////////////////////////////////////////////
 // getopt.h
@@ -97,8 +105,10 @@ private:
 
         if (method == "GET" && path.size() > 1) {
           path = dir_ + path;
-
-          // cout << "Opening: " << path << endl;
+          if (!isFileExists(path)) {
+            write(socket_, asio::buffer(notFound));
+            break;
+          }
           ifstream ifs(path, ios_base::in);
           if (!ifs.good()) {
             write(socket_, asio::buffer(notFound));
