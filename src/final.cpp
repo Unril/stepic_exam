@@ -283,19 +283,19 @@ int main(int argc, char **argv) {
   umask(0);
 
   /* Open any logs here */
-  log_ = new ofstream("/home/box/log.txt");
+  log_ = new ofstream("/home/box/log.txt", ios_base::trunc | ios_base::out);
 
   /* Create a new SID for the child process */
   sid = setsid();
   if (sid < 0) {
     /* Log any failures here */
-    exit(EXIT_FAILURE);
+   // exit(EXIT_FAILURE);
   }
 
   /* Change the current working directory */
   if ((chdir("/")) < 0) {
     /* Log any failures here */
-    exit(EXIT_FAILURE);
+   // exit(EXIT_FAILURE);
   }
 
   /* Close out the standard file descriptors */
