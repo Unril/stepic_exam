@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
 #ifdef WIN32
   int i = system(("server.exe " + opt).c_str());
 #else
-  int i = system(("./server " + opt + " &").c_str());
+  int i = system(("sudo ./server " + opt + " &").c_str());
 #endif
   if (i != 0)
     printf("The value returned was: %d.\n", i);
