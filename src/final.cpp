@@ -66,25 +66,21 @@ public:
       : socket_{move(socket)}, dir_{dir} {}
 
   void operator()() {
-    // cout << "Starting thread: " << this_thread::get_id() << endl;
     run();
-    // cout << "Exiting thread: " << this_thread::get_id() << endl;
   }
 
 private:
   void run() {
     try {
       while (true) {
-        // cout << "Start reading..." << endl;
-
         char data[max_length];
         asio::error_code error;
         size_t length =
             socket_.read_some(asio::buffer(data, max_length), error);
         if (error == asio::error::eof)
-          break; // Connection closed cleanly by peer.
+          break; 
         if (error)
-          throw asio::system_error(error); // Some other error.
+          throw asio::system_error(error); 
 
         string dataStr(data, length);
         if (dataStr.empty()) {
@@ -98,17 +94,12 @@ private:
         if (p != string::npos) {
           path = path.substr(0, p);
         }
-
-        // cout << "Parsed: " << method << " -> " << path << endl;
-        // cout << "Read in " << this_thread::get_id() << endl;
-        // cout << dataStr << endl;
+        if (path == "/") {
+          path = "/index.html";
+        }
 
         if (method == "GET" && path.size() > 1) {
           path = dir_ + path;
-          if (!isFileExists(path)) {
-            write(socket_, asio::buffer(notFound));
-            break;
-          }
           string content;
           try {
             ifstream ifs(path, ios_base::in);
@@ -149,8 +140,6 @@ private:
 
 void server(asio::io_service &service, asio::ip::address ip, int port,
             string dir) {
-  // cout << "Starting server with address " << ip << " port " << port
-  //     << " and dir " << dir << endl;
   tcp::acceptor a(service, tcp::endpoint(ip, port));
   for (;;) {
     tcp::socket sock(service);
