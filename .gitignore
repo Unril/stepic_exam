@@ -1,8 +1,5 @@
-<<<<<<< HEAD
 /Build
 
-=======
->>>>>>> remotes/origin/master
 # Compiled Object files
 *.slo
 *.lo
@@ -31,8 +28,5 @@
 *.exe
 *.out
 *.app
-<<<<<<< HEAD
 *.ilk
 *.pdb
-=======
->>>>>>> remotes/origin/master
