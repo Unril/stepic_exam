@@ -117,12 +117,7 @@ private:
           }
 
           stringstream resp;
-          resp << "HTTP/1.0 200 OK" << endl;
-          resp << "Content-length: " << content.size() + 1 << endl;
-          resp << "Connection: close" << endl;
-          resp << "Content-Type: text/html" << endl;
-          resp << "\r\n" << endl;
-          resp << content << endl;
+          resp << "HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n" << content;
           write(socket_, asio::buffer(resp.str()));
         } else {
           write(socket_, asio::buffer(notFound));
