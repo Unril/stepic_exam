@@ -211,9 +211,6 @@ public:
 
 void server(asio::io_service &service, asio::ip::address ip, int port,
             string dir) {
-  if (dir.back() == '/')
-    dir = dir.substr(0, dir.size() - 1);
-
   tcp::acceptor a(service, tcp::endpoint(ip, port));
   for (;;) {
     tcp::socket sock(service);
@@ -225,6 +222,10 @@ void server(asio::io_service &service, asio::ip::address ip, int port,
 
 void run(string ip, string port, string dir) {
   try {
+    if (dir.back() == '/')
+      dir = dir.substr(0, dir.size() - 1);
+    if (ip == "localhost")
+      ip = "127.0.0.1";
     asio::io_service io_service;
     HttpServer::server(io_service, asio::ip::address::from_string(ip),
                        stoi(port), dir);
@@ -289,13 +290,13 @@ int main(int argc, char **argv) {
   sid = setsid();
   if (sid < 0) {
     /* Log any failures here */
-   // exit(EXIT_FAILURE);
+    // exit(EXIT_FAILURE);
   }
 
   /* Change the current working directory */
   if ((chdir("/")) < 0) {
     /* Log any failures here */
-   // exit(EXIT_FAILURE);
+    // exit(EXIT_FAILURE);
   }
 
   /* Close out the standard file descriptors */
