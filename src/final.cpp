@@ -1,7 +1,18 @@
+#include <asio.hpp>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <memory>
 #include <string>
+#include <thread>
+
+#ifndef WIN32
+
+#include <getopt.h>
+#include <unistd.h>
+
+#else
 
 ///////////////////////////////////////////////////////////////////////////////
 // getopt.h
@@ -23,17 +34,128 @@ struct option {
 
 int getopt(int argc, char *const argv[], const char *optstring);
 
-int getopt_long(int argc, char *const argv[], const char *optstring,
-                const struct option *longopts, int *longindex);
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // final -h <ip> -p <port> -d <directory>
 ///////////////////////////////////////////////////////////////////////////////
 
+using namespace std;
+using asio::ip::tcp;
+
+namespace HttpServer {
+
+static const unsigned int timeoutMs = 30000;
+
+static const string notFound =
+    "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
+
+class Session : public enable_shared_from_this<Session> {
+public:
+  static const int max_length = 1024;
+
+  explicit Session(tcp::socket socket, string dir)
+      : socket_{move(socket)}, dir_{dir} {}
+
+  void operator()() {
+    // cout << "Starting thread: " << this_thread::get_id() << endl;
+    run();
+    // cout << "Exiting thread: " << this_thread::get_id() << endl;
+  }
+
+private:
+  void run() {
+    try {
+      while (true) {
+        // cout << "Start reading..." << endl;
+
+        char data[max_length];
+        asio::error_code error;
+        size_t length =
+            socket_.read_some(asio::buffer(data, max_length), error);
+        if (error == asio::error::eof)
+          break; // Connection closed cleanly by peer.
+        if (error)
+          throw asio::system_error(error); // Some other error.
+
+        string dataStr(data, length);
+        if (dataStr.empty()) {
+          break;
+        }
+        stringstream ss(dataStr);
+        string method;
+        string path;
+        ss >> method >> path;
+        int p = path.find('?');
+        if (p != string::npos) {
+          path = path.substr(0, p);
+        }
+
+        // cout << "Parsed: " << method << " -> " << path << endl;
+        // cout << "Read in " << this_thread::get_id() << endl;
+        // cout << dataStr << endl;
+
+        if (method == "GET" && path.size() > 1) {
+          path = dir_ + path;
+
+          // cout << "Opening: " << path << endl;
+          ifstream ifs(path, ios_base::in);
+          if (!ifs.good()) {
+            write(socket_, asio::buffer(notFound));
+            break;
+          }
+          string content((istreambuf_iterator<char>(ifs)),
+                         istreambuf_iterator<char>());
+          stringstream resp;
+          resp << "HTTP/1.0 200 OK" << endl;
+          resp << "Content-length: " << content.size() + 1 << endl;
+          resp << "Connection: close" << endl;
+          resp << "Content-Type: text/html" << endl;
+          resp << "\r\n" << endl;
+          resp << content << endl;
+          write(socket_, asio::buffer(resp.str()));
+        } else {
+          write(socket_, asio::buffer(notFound));
+          break;
+        }
+      }
+    } catch (const exception &e) {
+      cerr << "Session exception: " << e.what() << "\n";
+    }
+  }
+
+  tcp::socket socket_;
+  string dir_;
+};
+
+void server(asio::io_service &service, asio::ip::address ip, int port,
+            string dir) {
+  // cout << "Starting server with address " << ip << " port " << port
+  //     << " and dir " << dir << endl;
+  tcp::acceptor a(service, tcp::endpoint(ip, port));
+  for (;;) {
+    tcp::socket sock(service);
+    a.accept(sock);
+    thread(Session(move(sock), dir)).detach();
+  }
+}
+}
+
+void run(string ip, string port, string dir) {
+  try {
+    asio::io_service io_service;
+    HttpServer::server(io_service, asio::ip::address::from_string(ip),
+                       stoi(port), dir);
+    io_service.run();
+  } catch (const exception &e) {
+    cerr << "Exception: " << e.what() << "\n";
+  }
+}
+
 int main(int argc, char **argv) {
-  std::string ip;
-  std::string port;
-  std::string dir;
+  string ip;
+  string port;
+  string dir;
 
   int c;
   int errflg = 0;
@@ -63,23 +185,28 @@ int main(int argc, char **argv) {
     exit(2);
   }
 
-  std::string opt = "\"" + ip + "\" \"" + port + "\" \"" + dir + "\"";
- // printf("Starting server with options: %s\n", opt.c_str());
-
-#ifdef WIN32
-  int i = system(("server.exe " + opt).c_str());
-#else
-  int i = system(("sudo ./server " + opt + " &").c_str());
+#ifndef WIN32
+  pid_t pid;
+  pid = fork();
+  if (pid < 0) {
+    exit(EXIT_FAILURE);
+  }
+  /* If we got a good PID, then
+     we can exit the parent process. */
+  if (pid > 0) {
+    exit(EXIT_SUCCESS);
+  }
 #endif
-  if (i != 0)
-    printf("The value returned was: %d.\n", i);
+
+  run(ip, port, dir);
+
   return 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // getopt.c
 ///////////////////////////////////////////////////////////////////////////////
-
+#ifdef WIN32
 const int no_argument = 0;
 const int required_argument = 1;
 const int optional_argument = 2;
@@ -203,80 +330,4 @@ no_more_optchars:
   return -1;
 }
 
-/* Implementation based on [1].
-
-[1] http://www.kernel.org/doc/man-pages/online/pages/man3/getopt.3.html
-*/
-int getopt_long(int argc, char *const argv[], const char *optstring,
-                const struct option *longopts, int *longindex) {
-  const struct option *o = longopts;
-  const struct option *match = NULL;
-  int num_matches = 0;
-  size_t argument_name_length = 0;
-  const char *current_argument = NULL;
-  int retval = -1;
-
-  optarg = NULL;
-  optopt = 0;
-
-  if (optind >= argc)
-    return -1;
-
-  if (strlen(argv[optind]) < 3 || strncmp(argv[optind], "--", 2) != 0)
-    return getopt(argc, argv, optstring);
-
-  /* It's an option; starts with -- and is longer than two chars. */
-  current_argument = argv[optind] + 2;
-  argument_name_length = strcspn(current_argument, "=");
-  for (; o->name; ++o) {
-    if (strncmp(o->name, current_argument, argument_name_length) == 0) {
-      match = o;
-      ++num_matches;
-    }
-  }
-
-  if (num_matches == 1) {
-    /* If longindex is not NULL, it points to a variable which is set to the
-       index of the long option relative to longopts. */
-    if (longindex)
-      *longindex = (match - longopts);
-
-    /* If flag is NULL, then getopt_long() shall return val.
-       Otherwise, getopt_long() returns 0, and flag shall point to a variable
-       which shall be set to val if the option is found, but left unchanged if
-       the option is not found. */
-    if (match->flag)
-      *(match->flag) = match->val;
-
-    retval = match->flag ? 0 : match->val;
-
-    if (match->has_arg != no_argument) {
-      optarg = strchr(argv[optind], '=');
-      if (optarg != NULL)
-        ++optarg;
-
-      if (match->has_arg == required_argument) {
-        /* Only scan the next argv for required arguments. Behavior is not
-           specified, but has been observed with Ubuntu and Mac OSX. */
-        if (optarg == NULL && ++optind < argc) {
-          optarg = argv[optind];
-        }
-
-        if (optarg == NULL)
-          retval = ':';
-      }
-    } else if (strchr(argv[optind], '=')) {
-      /* An argument was provided to a non-argument option.
-         I haven't seen this specified explicitly, but both GNU and BSD-based
-         implementations show this behavior.
-      */
-      retval = '?';
-    }
-  } else {
-    /* Unknown option or ambiguous match. */
-    retval = '?';
-  }
-
-  ++optind;
-  return retval;
-}
+#endif

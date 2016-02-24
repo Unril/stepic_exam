@@ -12,8 +12,7 @@ SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR})
 find_package (Threads)
 
 ADD_EXECUTABLE(final src/final.cpp)
-ADD_EXECUTABLE(server src/server.cpp)
 
-target_link_libraries (server ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries (final ${CMAKE_THREAD_LIBS_INIT})
 
 INCLUDE_DIRECTORIES(include)
