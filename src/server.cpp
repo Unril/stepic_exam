@@ -84,13 +84,16 @@ private:
 
         char data[max_length];
         asio::error_code error;
-        size_t length = socket_.read_some(asio::buffer(data), error);
+        size_t length = socket_.read_some(asio::buffer(data, max_length), error);
         if (error == asio::error::eof)
           break; // Connection closed cleanly by peer.
         if (error)
           throw asio::system_error(error); // Some other error.
 
         string dataStr(data, length);
+		if(dataStr.empty()) {
+			break;
+		}
         stringstream ss(dataStr);
         string method;
         string path;
@@ -104,10 +107,10 @@ private:
         //cout << "Read in " << this_thread::get_id() << endl;
         //cout << dataStr << endl;
 
-        if (method == "GET" && !path.empty()) {
-          path = dir_ + "/" + path;
+        if (method == "GET" && path.size() > 1) {
+          path = dir_  + path;
 		 // cout << "Opening: " << path << endl;
-          ifstream ifs(path);
+          ifstream ifs(path, ios_base::in);
           if (!ifs) {
             write(socket_, asio::buffer(notFound));
             break;
