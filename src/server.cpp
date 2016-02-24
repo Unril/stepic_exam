@@ -97,6 +97,10 @@ private:
         string method;
         string path;
         ss >> method >> path;
+		int p = path.find('?');
+		if(p != string::npos) {
+			path = path.substr(0, p);
+		}
        // cout << "Parsed: " << method << " -> " << path << endl;
         //cout << "Read in " << this_thread::get_id() << endl;
        // cout << dataStr << endl;
