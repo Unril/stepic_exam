@@ -59,19 +59,20 @@ int main(int argc, char **argv) {
     }
   }
   if (errflg || ip.empty() || port.empty() || dir.empty()) {
- //   fprintf(stderr, "usage: -h <ip> -p <port> -d <directory>\n");
+    fprintf(stderr, "usage: -h <ip> -p <port> -d <directory>\n");
     exit(2);
   }
 
   std::string opt = "\"" + ip + "\" \"" + port + "\" \"" + dir + "\"";
- // printf("Starting server with options: %s\n", opt.c_str());
+  printf("Starting server with options: %s\n", opt.c_str());
 
 #ifdef WIN32
   int i = system(("server.exe " + opt).c_str());
 #else
   int i = system(("./server " + opt + " &").c_str());
 #endif
- // if(i != 0) printf("The value returned was: %d.\n", i);
+  if (i != 0)
+    printf("The value returned was: %d.\n", i);
   return 0;
 }
 
