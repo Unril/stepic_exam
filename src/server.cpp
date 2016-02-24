@@ -78,8 +78,8 @@ public:
 
 private:
   void run() {
-    socket_.set_option(SetRcvTimeout(timeoutMs));
-    socket_.set_option(SetSndTimeout(timeoutMs));
+   // socket_.set_option(SetRcvTimeout(timeoutMs));
+   // socket_.set_option(SetSndTimeout(timeoutMs));
     try {
       while (true) {
         cout << "Start reading..." << endl;
@@ -108,6 +108,7 @@ private:
 
         if (method == "GET" && !path.empty()) {
           path = dir_ + "/" + path;
+		  cout << "Opening: " << path << endl;
           ifstream ifs(path);
           if (!ifs) {
             write(socket_, asio::buffer(notFound));
