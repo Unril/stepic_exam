@@ -44,6 +44,8 @@ int getopt(int argc, char *const argv[], const char *optstring);
 using namespace std;
 using asio::ip::tcp;
 
+static ofstream *log_;
+
 namespace HttpServer {
 
 static const string notFoundContent = "<html>"
@@ -179,10 +181,14 @@ public:
       asio::error_code error;
       size_t length = socket_.read_some(asio::buffer(data, max_length), error);
       string dataStr(data, length);
+
       if (error == asio::error::eof)
-        return Result::Ok;
+        return Result::BadRequest;
       if (error)
         throw asio::system_error(error);
+
+      if (log_)
+        *log_ << "Data " << dataStr << endl;
 
       stringstream ss(dataStr);
       string method;
@@ -277,6 +283,7 @@ int main(int argc, char **argv) {
   umask(0);
 
   /* Open any logs here */
+  log_ = new ofsteram("/home/box/log.txt");
 
   /* Create a new SID for the child process */
   sid = setsid();
@@ -294,8 +301,11 @@ int main(int argc, char **argv) {
   /* Close out the standard file descriptors */
   close(STDIN_FILENO);
   close(STDOUT_FILENO);
-// close(STDERR_FILENO);
+  close(STDERR_FILENO);
 #endif
+
+  if (log_)
+    *log_ << "Open " << ip << " " << port << " " << dir << endl;
 
   run(ip, port, dir);
 
