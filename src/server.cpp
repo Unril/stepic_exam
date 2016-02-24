@@ -1,5 +1,4 @@
 #include <asio.hpp>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -14,54 +13,6 @@ static const unsigned int timeoutMs = 30000;
 
 static const string notFound =
     "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
-
-class SetRcvTimeout {
-public:
-  explicit SetRcvTimeout(unsigned int timeout) : timeout_(timeout){};
-
-  template <class Protocol> static int level(const Protocol &p) {
-    return SOL_SOCKET;
-  }
-
-  template <class Protocol> static int name(const Protocol &p) {
-    return SO_RCVTIMEO;
-  }
-
-  template <class Protocol> const void *data(const Protocol &p) const {
-    return &timeout_;
-  }
-
-  template <class Protocol> size_t size(const Protocol &p) const {
-    return sizeof(timeout_);
-  }
-
-private:
-  unsigned int timeout_;
-};
-
-class SetSndTimeout {
-public:
-  explicit SetSndTimeout(unsigned int timeout) : timeout_(timeout){};
-
-  template <class Protocol> static int level(const Protocol &p) {
-    return SOL_SOCKET;
-  }
-
-  template <class Protocol> static int name(const Protocol &p) {
-    return SO_SNDTIMEO;
-  }
-
-  template <class Protocol> const void *data(const Protocol &p) const {
-    return &timeout_;
-  }
-
-  template <class Protocol> size_t size(const Protocol &p) const {
-    return sizeof(timeout_);
-  }
-
-private:
-  unsigned int timeout_;
-};
 
 class Session : public enable_shared_from_this<Session> {
 public:
@@ -111,13 +62,9 @@ private:
         if (method == "GET" && path.size() > 1) {
           path = dir_ + path;
 
-          if (!experimental::filesystem::exists(path)) {
-            write(socket_, asio::buffer(notFound));
-            break;
-          }
           // cout << "Opening: " << path << endl;
           ifstream ifs(path, ios_base::in);
-          if (!ifs) {
+          if (!ifs.good()) {
             write(socket_, asio::buffer(notFound));
             break;
           }
