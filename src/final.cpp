@@ -109,13 +109,22 @@ private:
             write(socket_, asio::buffer(notFound));
             break;
           }
-          ifstream ifs(path, ios_base::in);
-          if (!ifs.good()) {
+          string content;
+          try {
+            ifstream ifs(path, ios_base::in);
+            if (!ifs.good()) {
+              write(socket_, asio::buffer(notFound));
+              break;
+            }
+            content = string((istreambuf_iterator<char>(ifs)),
+                             istreambuf_iterator<char>());
+          } catch (const exception &) {
+          }
+          if (content.empty()) {
             write(socket_, asio::buffer(notFound));
             break;
           }
-          string content((istreambuf_iterator<char>(ifs)),
-                         istreambuf_iterator<char>());
+
           stringstream resp;
           resp << "HTTP/1.0 200 OK" << endl;
           resp << "Content-length: " << content.size() + 1 << endl;
